@@ -7,6 +7,18 @@ import { ReviewService } from "../services/review/review.service";
 
 const reviewService = new ReviewService();
 
+function processReviewInBackground(
+  payload: Parameters<ReviewService["handleWebhookEvent"]>[0],
+  deliveryId: string,
+  eventType: string
+): void {
+  setImmediate(() => {
+    void reviewService.handleWebhookEvent(payload, deliveryId, eventType).catch((error: unknown) => {
+      console.error(`Background PR review failed for GitHub delivery ${deliveryId}`, error);
+    });
+  });
+}
+
 export async function handleGithubWebhook(request: Request, response: Response, next: NextFunction): Promise<void> {
   try {
     const headers = GithubWebhookHeadersSchema.parse({
@@ -29,14 +41,14 @@ export async function handleGithubWebhook(request: Request, response: Response, 
     }
 
     const payload = GitHubPullRequestWebhookSchema.parse(request.body);
-    const result = await reviewService.handleWebhookEvent(payload, headers.delivery, headers.event);
 
-    response.status(200).json({
+    response.status(202).json({
       received: true,
-      ignored: result.ignored,
-      processed: result.processed,
-      reviewJobId: result.reviewJobId ?? null
+      accepted: true,
+      deliveryId: headers.delivery
     });
+
+    processReviewInBackground(payload, headers.delivery, headers.event);
   } catch (error) {
     next(error);
   }

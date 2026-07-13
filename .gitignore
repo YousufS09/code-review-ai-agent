@@ -1,0 +1,9 @@
+node_modules
+dist
+.env
+.env.local
+coverage
+*.log
+prisma/dev.db
+.DS_Store
+ai-code-review-agent-sdd.docx

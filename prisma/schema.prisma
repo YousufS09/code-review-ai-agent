@@ -1,0 +1,104 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum PullRequestStatus {
+  open
+  reviewed
+  failed
+}
+
+enum ReviewJobStatus {
+  processing
+  completed
+  failed
+}
+
+model Repository {
+  id            Int           @id @default(autoincrement())
+  owner         String
+  name          String
+  pullRequests  PullRequest[]
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@unique([owner, name])
+}
+
+model PullRequest {
+  id               Int            @id @default(autoincrement())
+  repositoryId     Int
+  prNumber         Int
+  headSha          String?
+  sender           String?
+  installationId   BigInt?
+  status           PullRequestStatus @default(open)
+  lastReviewedSha  String?
+  repository      Repository      @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  reviewJobs      ReviewJob[]
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@unique([repositoryId, prNumber])
+  @@index([status])
+}
+
+model ReviewJob {
+  id              Int             @id @default(autoincrement())
+  pullRequestId   Int
+  webhookEventId  Int?            @unique
+  status          ReviewJobStatus @default(processing)
+  retries         Int             @default(0)
+  commitSha       String?
+  model          String?
+  error           String?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  pullRequest    PullRequest     @relation(fields: [pullRequestId], references: [id], onDelete: Cascade)
+  webhookEvent   WebhookEvent?   @relation(fields: [webhookEventId], references: [id], onDelete: SetNull)
+  findings       ReviewFinding[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@index([status])
+}
+
+model ReviewFinding {
+  id           Int        @id @default(autoincrement())
+  reviewJobId  Int
+  severity     String
+  file         String
+  line         Int?
+  issue        String
+  explanation  String
+  suggestion   String
+  reviewJob    ReviewJob  @relation(fields: [reviewJobId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+model WebhookEvent {
+  id              Int          @id @default(autoincrement())
+  deliveryId      String       @unique
+  eventType       String
+  action          String?
+  repositoryOwner String?
+  repositoryName  String?
+  prNumber        Int?
+  installationId  BigInt?
+  payload         Json
+  processed       Boolean      @default(false)
+  ignored         Boolean      @default(false)
+  error           String?
+  reviewJob       ReviewJob?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([eventType, action])
+  @@index([processed, ignored])
+}

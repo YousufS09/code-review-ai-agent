@@ -1,6 +1,13 @@
 import { env } from "../../config/env";
 import { HttpError } from "../../utils/http-error.util";
-import type { GitHubIssueComment, GitHubPullRequest, GitHubPullRequestFile } from "../../types/github.types";
+import type {
+  GitHubIssueComment,
+  GitHubPullRequest,
+  GitHubPullRequestFile,
+  GitHubPullRequestReview,
+  GitHubPullRequestReviewComment,
+  GitHubPullRequestReviewCommentInput
+} from "../../types/github.types";
 import { GitHubAuthService } from "./auth.service";
 
 type RequestMethod = "GET" | "POST" | "PATCH";
@@ -105,5 +112,34 @@ export class GitHubApiService {
       body: { body }
     });
   }
-}
 
+  async listPullRequestReviewComments(
+    owner: string,
+    repository: string,
+    pullNumber: number,
+    installationId: number
+  ): Promise<GitHubPullRequestReviewComment[]> {
+    return this.requestPaginated<GitHubPullRequestReviewComment>(
+      installationId,
+      `/repos/${owner}/${repository}/pulls/${pullNumber}/comments`
+    );
+  }
+
+  async createPullRequestReview(
+    owner: string,
+    repository: string,
+    pullNumber: number,
+    installationId: number,
+    commitSha: string,
+    comments: GitHubPullRequestReviewCommentInput[]
+  ): Promise<GitHubPullRequestReview> {
+    return this.request<GitHubPullRequestReview>(installationId, `/repos/${owner}/${repository}/pulls/${pullNumber}/reviews`, {
+      method: "POST",
+      body: {
+        commit_id: commitSha,
+        event: "COMMENT",
+        comments
+      }
+    });
+  }
+}

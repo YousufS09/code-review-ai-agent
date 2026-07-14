@@ -4,7 +4,6 @@ import type {
   GitHubIssueComment,
   GitHubPullRequest,
   GitHubPullRequestFile,
-  GitHubPullRequestReview,
   GitHubPullRequestReviewComment,
   GitHubPullRequestReviewCommentInput
 } from "../../types/github.types";
@@ -125,21 +124,24 @@ export class GitHubApiService {
     );
   }
 
-  async createPullRequestReview(
+  async createPullRequestReviewComment(
     owner: string,
     repository: string,
     pullNumber: number,
     installationId: number,
     commitSha: string,
-    comments: GitHubPullRequestReviewCommentInput[]
-  ): Promise<GitHubPullRequestReview> {
-    return this.request<GitHubPullRequestReview>(installationId, `/repos/${owner}/${repository}/pulls/${pullNumber}/reviews`, {
-      method: "POST",
-      body: {
-        commit_id: commitSha,
-        event: "COMMENT",
-        comments
+    comment: GitHubPullRequestReviewCommentInput
+  ): Promise<GitHubPullRequestReviewComment> {
+    return this.request<GitHubPullRequestReviewComment>(
+      installationId,
+      `/repos/${owner}/${repository}/pulls/${pullNumber}/comments`,
+      {
+        method: "POST",
+        body: {
+          commit_id: commitSha,
+          ...comment
+        }
       }
-    });
+    );
   }
 }

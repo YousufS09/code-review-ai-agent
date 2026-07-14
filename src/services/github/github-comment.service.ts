@@ -34,8 +34,8 @@ function renderFindingsTable(findings: ReviewFinding[]): string {
   ].join("\n");
 }
 
-function getAddedLines(patch: string | undefined): Set<number> {
-  const lines = new Set<number>();
+function getAddedLines(patch: string | undefined): Map<number, string> {
+  const lines = new Map<number, string>();
   if (!patch) {
     return lines;
   }
@@ -54,7 +54,7 @@ function getAddedLines(patch: string | undefined): Set<number> {
     }
 
     if (patchLine.startsWith("+") && !patchLine.startsWith("+++")) {
-      lines.add(currentNewLine);
+      lines.set(currentNewLine, patchLine.slice(1));
       currentNewLine += 1;
       continue;
     }
@@ -69,8 +69,33 @@ function getAddedLines(patch: string | undefined): Set<number> {
   return lines;
 }
 
-function buildChangedLinesByFile(files: GitHubPullRequestFile[]): Map<string, Set<number>> {
+function buildChangedLinesByFile(files: GitHubPullRequestFile[]): Map<string, Map<number, string>> {
   return new Map(files.map((file) => [file.filename, getAddedLines(file.patch)]));
+}
+
+function findingMatchesSourceLine(finding: ReviewFinding, sourceLine: string): boolean {
+  const details = `${finding.issue} ${finding.explanation} ${finding.suggestedFix}`.toLowerCase();
+  const source = sourceLine.trim();
+  const isComment = source.startsWith("//");
+  const hasConsoleCall = /\bconsole\.(log|info|warn|error|debug)\s*\(/.test(source);
+
+  if (details.includes("console") || details.includes("debug statement")) {
+    return hasConsoleCall;
+  }
+
+  if (details.includes("todo")) {
+    return isComment && /\bTODO\b/i.test(source);
+  }
+
+  if (details.includes("fixme")) {
+    return isComment && /\bFIXME\b/i.test(source);
+  }
+
+  if (details.includes("comment")) {
+    return isComment;
+  }
+
+  return true;
 }
 
 function buildInlineCommentBody(finding: ReviewFinding): string {
@@ -111,15 +136,38 @@ export class GitHubCommentService {
     return comments.find((comment) => comment.body.includes(AI_CODE_REVIEW_MARKER));
   }
 
+  private resolveInlineFindingLine(
+    changedLines: Map<number, string> | undefined,
+    finding: ReviewFinding
+  ): number | null {
+    if (finding.line === null || !finding.lineContent || !changedLines) {
+      return null;
+    }
+
+    const expectedContent = finding.lineContent.trim();
+    const reportedLine = changedLines.get(finding.line);
+
+    if (reportedLine?.trim() === expectedContent && findingMatchesSourceLine(finding, reportedLine)) {
+      return finding.line;
+    }
+
+    const matchingLines = [...changedLines.entries()].filter(
+      ([, sourceLine]) => sourceLine.trim() === expectedContent && findingMatchesSourceLine(finding, sourceLine)
+    );
+
+    return matchingLines.length === 1 ? matchingLines[0][0] : null;
+  }
+
   private isDuplicateInlineComment(
     comment: GitHubPullRequestReviewComment,
     finding: ReviewFinding,
-    commitSha: string
+    commitSha: string,
+    line: number
   ): boolean {
     return (
       comment.commit_id === commitSha &&
       comment.path === finding.file &&
-      comment.line === finding.line &&
+      comment.line === line &&
       comment.side === "RIGHT" &&
       comment.body.includes(AI_INLINE_REVIEW_MARKER)
     );
@@ -164,19 +212,19 @@ export class GitHubCommentService {
     }
 
     for (const finding of analysis.findings) {
-      const changedLines = changedLinesByFile.get(finding.file);
-      if (finding.line === null || !changedLines?.has(finding.line)) {
+      const line = this.resolveInlineFindingLine(changedLinesByFile.get(finding.file), finding);
+      if (line === null) {
         continue;
       }
 
-      if (existingComments.some((comment) => this.isDuplicateInlineComment(comment, finding, commitSha))) {
+      if (existingComments.some((comment) => this.isDuplicateInlineComment(comment, finding, commitSha, line))) {
         continue;
       }
 
       const comment: GitHubPullRequestReviewCommentInput = {
         body: buildInlineCommentBody(finding),
         path: finding.file,
-        line: finding.line,
+        line,
         side: "RIGHT"
       };
 

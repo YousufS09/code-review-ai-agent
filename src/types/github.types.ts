@@ -53,6 +53,27 @@ export interface GitHubIssueComment {
   created_at: string;
 }
 
+export interface GitHubPullRequestReviewComment {
+  id: number;
+  body: string;
+  path: string;
+  line: number | null;
+  side: "LEFT" | "RIGHT" | null;
+  commit_id: string;
+  user: GitHubUser;
+}
+
+export interface GitHubPullRequestReviewCommentInput {
+  body: string;
+  path: string;
+  line: number;
+  side: "RIGHT";
+}
+
+export interface GitHubPullRequestReview {
+  id: number;
+}
+
 export interface GitHubReviewContext {
   owner: string;
   repository: string;
@@ -61,4 +82,3 @@ export interface GitHubReviewContext {
   commitSha: string;
   sender: string;
 }
-

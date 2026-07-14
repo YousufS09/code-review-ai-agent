@@ -13,6 +13,8 @@ export class PromptBuilderService {
       "Ignore unrelated files, repository context, and anything outside the patch.",
       "Prioritize correctness, security, maintainability, and performance.",
       "Do not add unnecessary commentary.",
+      "For every finding, return the exact file path and the new-file line number only when the problem is on an added line marked with + in the diff.",
+      "If a valid finding is not on an added line, set its line to null.",
       "Return valid JSON only.",
       "Use this response shape:",
       "{",
@@ -76,4 +78,3 @@ export class PromptBuilderService {
     ].join("\n");
   }
 }
-

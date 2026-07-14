@@ -14,12 +14,14 @@ export class PromptBuilderService {
       "Prioritize correctness, security, maintainability, and performance.",
       "Do not add unnecessary commentary.",
       "For every finding, return the exact file path and the new-file line number only when the problem is on an added line marked with + in the diff.",
-      "If a valid finding is not on an added line, set its line to null.",
+      "For every finding with a line number, lineContent must be an exact character-for-character copy of that added source line after the + marker; do not paraphrase it and do not include the + marker.",
+      "If a valid finding is not on an added line, set both line and lineContent to null.",
+      "Never report a line number unless lineContent matches that exact added line.",
       "Return valid JSON only.",
       "Use this response shape:",
       "{",
       '  "summary": string,',
-      '  "findings": [{ "file": string, "line": number | null, "severity": "critical" | "high" | "medium" | "low", "issue": string, "explanation": string, "suggestedFix": string }]',
+      '  "findings": [{ "file": string, "line": number | null, "lineContent": string | null, "severity": "critical" | "high" | "medium" | "low", "issue": string, "explanation": string, "suggestedFix": string }]',
       "}"
     ].join("\n");
   }

@@ -181,13 +181,13 @@ export class GitHubCommentService {
       };
 
       try {
-        await this.githubApi.createPullRequestReview(
+        await this.githubApi.createPullRequestReviewComment(
           owner,
           repository,
           pullNumber,
           installationId,
           commitSha,
-          [comment]
+          comment
         );
       } catch (error) {
         console.error(`Unable to create inline review comment for ${finding.file}:${finding.line}`, error);

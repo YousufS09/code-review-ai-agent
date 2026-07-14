@@ -6,6 +6,7 @@ import { HttpError } from "../../utils/http-error.util";
 const ReviewFindingSchema = z.object({
   file: z.string().min(1),
   line: z.coerce.number().int().nonnegative().nullable().optional().transform((value) => value ?? null),
+  lineContent: z.string().min(1).nullable().optional().transform((value) => value ?? null),
   severity: z.enum(["critical", "high", "medium", "low"]),
   issue: z.string().min(1),
   explanation: z.string().min(1),

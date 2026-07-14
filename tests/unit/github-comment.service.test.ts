@@ -85,6 +85,59 @@ describe("GitHubCommentService", () => {
     );
   });
 
+  it("reanchors a finding only when its exact source line appears once in the changed diff", async () => {
+    const api = createApiMock();
+    const service = new GitHubCommentService(api as unknown as GitHubApiService);
+    const analysis: ReviewAnalysis = {
+      summary: "A shifted debug line was found.",
+      findings: [
+        {
+          file: "src/demo.ts",
+          line: 1,
+          lineContent: "console.log(first);",
+          severity: "low",
+          issue: "Debug statement",
+          explanation: "Console output should not remain in production code.",
+          suggestedFix: "Remove console.log(first)."
+        }
+      ]
+    };
+
+    await service.postInlineReviewComments(owner, repository, pullNumber, installationId, analysis, commitSha, files);
+
+    expect(api.createPullRequestReviewComment).toHaveBeenCalledWith(
+      owner,
+      repository,
+      pullNumber,
+      installationId,
+      commitSha,
+      expect.objectContaining({ line: 2 })
+    );
+  });
+
+  it("skips a finding when its description does not match the changed source line", async () => {
+    const api = createApiMock();
+    const service = new GitHubCommentService(api as unknown as GitHubApiService);
+    const analysis: ReviewAnalysis = {
+      summary: "A mismatched finding was found.",
+      findings: [
+        {
+          file: "src/demo.ts",
+          line: 1,
+          lineContent: "const first = true;",
+          severity: "low",
+          issue: "Debug statement",
+          explanation: "A console.log statement should be removed.",
+          suggestedFix: "Remove console.log(first)."
+        }
+      ]
+    };
+
+    await service.postInlineReviewComments(owner, repository, pullNumber, installationId, analysis, commitSha, files);
+
+    expect(api.createPullRequestReviewComment).not.toHaveBeenCalled();
+  });
+
   it("skips findings without a valid added diff line", async () => {
     const api = createApiMock();
     const service = new GitHubCommentService(api as unknown as GitHubApiService);

@@ -134,6 +134,15 @@ export class ReviewOrchestratorService {
       analysis,
       commitSha
     );
+    await this.commentService.postInlineReviewComments(
+      repository.owner,
+      repository.name,
+      job.pullNumber,
+      job.installationId,
+      analysis,
+      commitSha,
+      files
+    );
 
     await prisma.reviewJob.update({
       where: { id: reviewJobRecord.id },
@@ -178,7 +187,7 @@ export class ReviewOrchestratorService {
     }
 
     await prisma.reviewJob.update({
-      where: { id: reviewJobId },
+      where: { id: reviewJobRecord.id },
       data: {
         status: "failed",
         error: message,

@@ -32,7 +32,7 @@ function createApiMock() {
     }),
     updateIssueComment: jest.fn(),
     listPullRequestReviewComments: jest.fn().mockResolvedValue([]),
-    createPullRequestReview: jest.fn().mockResolvedValue({ id: 2 })
+    createPullRequestReviewComment: jest.fn().mockResolvedValue({ id: 2 })
   };
 }
 
@@ -70,19 +70,17 @@ describe("GitHubCommentService", () => {
 
     await service.postInlineReviewComments(owner, repository, pullNumber, installationId, analysis, commitSha, files);
 
-    expect(api.createPullRequestReview).toHaveBeenCalledWith(
+    expect(api.createPullRequestReviewComment).toHaveBeenCalledWith(
       owner,
       repository,
       pullNumber,
       installationId,
       commitSha,
-      [
-        expect.objectContaining({
-          path: "src/demo.ts",
-          line: 2,
-          side: "RIGHT"
-        })
-      ]
+      expect.objectContaining({
+        path: "src/demo.ts",
+        line: 2,
+        side: "RIGHT"
+      })
     );
   });
 
@@ -121,7 +119,7 @@ describe("GitHubCommentService", () => {
 
     await service.postInlineReviewComments(owner, repository, pullNumber, installationId, analysis, commitSha, files);
 
-    expect(api.createPullRequestReview).not.toHaveBeenCalled();
+    expect(api.createPullRequestReviewComment).not.toHaveBeenCalled();
   });
 
   it("skips an inline finding already commented on for the same commit", async () => {
@@ -154,12 +152,12 @@ describe("GitHubCommentService", () => {
 
     await service.postInlineReviewComments(owner, repository, pullNumber, installationId, analysis, commitSha, files);
 
-    expect(api.createPullRequestReview).not.toHaveBeenCalled();
+    expect(api.createPullRequestReviewComment).not.toHaveBeenCalled();
   });
 
   it("continues when one inline comment is rejected by GitHub", async () => {
     const api = createApiMock();
-    api.createPullRequestReview
+    api.createPullRequestReviewComment
       .mockRejectedValueOnce(new Error("Invalid comment location"))
       .mockResolvedValueOnce({ id: 3 });
     const service = new GitHubCommentService(api as unknown as GitHubApiService);
@@ -188,7 +186,7 @@ describe("GitHubCommentService", () => {
 
     await service.postInlineReviewComments(owner, repository, pullNumber, installationId, analysis, commitSha, files);
 
-    expect(api.createPullRequestReview).toHaveBeenCalledTimes(2);
+    expect(api.createPullRequestReviewComment).toHaveBeenCalledTimes(2);
     errorSpy.mockRestore();
   });
 });

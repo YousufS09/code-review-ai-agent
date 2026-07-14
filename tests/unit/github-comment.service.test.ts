@@ -165,6 +165,7 @@ describe("GitHubCommentService", () => {
         {
           file: "src/demo.ts",
           line: 99,
+          lineContent: "missing();",
           severity: "low",
           issue: "Invalid line",
           explanation: "The finding is outside the PR diff.",

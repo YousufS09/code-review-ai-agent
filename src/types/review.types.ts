@@ -3,6 +3,8 @@ export type ReviewSeverity = "critical" | "high" | "medium" | "low";
 export interface ReviewFinding {
   file: string;
   line: number | null;
+  /** Exact added source line supplied by the model; used to verify inline-comment placement. */
+  lineContent: string | null;
   severity: ReviewSeverity;
   issue: string;
   explanation: string;

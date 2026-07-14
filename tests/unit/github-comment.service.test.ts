@@ -60,6 +60,7 @@ describe("GitHubCommentService", () => {
         {
           file: "src/demo.ts",
           line: 2,
+          lineContent: "console.log(first);",
           severity: "low",
           issue: "Debug statement",
           explanation: "Console output should not remain in production code.",
@@ -93,6 +94,7 @@ describe("GitHubCommentService", () => {
         {
           file: "src/demo.ts",
           line: null,
+          lineContent: null,
           severity: "low",
           issue: "No line",
           explanation: "No valid location was supplied.",
@@ -101,6 +103,7 @@ describe("GitHubCommentService", () => {
         {
           file: "src/missing.ts",
           line: 2,
+          lineContent: "console.log(first);",
           severity: "low",
           issue: "Missing file",
           explanation: "The finding is outside the PR diff.",
@@ -142,6 +145,7 @@ describe("GitHubCommentService", () => {
         {
           file: "src/demo.ts",
           line: 2,
+          lineContent: "console.log(first);",
           severity: "low",
           issue: "Debug statement",
           explanation: "Console output should not remain in production code.",
@@ -167,6 +171,7 @@ describe("GitHubCommentService", () => {
         {
           file: "src/demo.ts",
           line: 2,
+          lineContent: "console.log(first);",
           severity: "low",
           issue: "Debug statement",
           explanation: "Console output should not remain in production code.",
@@ -175,6 +180,7 @@ describe("GitHubCommentService", () => {
         {
           file: "src/demo.ts",
           line: 3,
+          lineContent: "console.error(first);",
           severity: "low",
           issue: "Debug statement",
           explanation: "Console output should not remain in production code.",

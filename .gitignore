@@ -1,5 +1,5 @@
 node_modules
-dist
+dist 
 .env
 .env.local
 coverage
@@ -7,3 +7,4 @@ coverage
 prisma/dev.db
 .DS_Store
 ai-code-review-agent-sdd.docx
+build_sdd_clean.py

@@ -1,9 +1,12 @@
 import { env } from "../../config/env";
 import { HttpError } from "../../utils/http-error.util";
+import { fetchWithRetry } from "../../utils/http.util";
+import { truncateText } from "../../utils/text.util";
 import type {
   GitHubIssueComment,
   GitHubPullRequest,
   GitHubPullRequestFile,
+  GitHubPullRequestReview,
   GitHubPullRequestReviewComment,
   GitHubPullRequestReviewCommentInput
 } from "../../types/github.types";
@@ -20,22 +23,28 @@ export class GitHubApiService {
   constructor(private readonly authService = new GitHubAuthService()) {}
 
   private async request<T>(installationId: number, path: string, options: GitHubRequestOptions = {}): Promise<T> {
+    const method = options.method ?? "GET";
     const token = await this.authService.getInstallationAccessToken(installationId);
-    const response = await fetch(`https://api.github.com${path}`, {
-      method: options.method ?? "GET",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28",
-        "User-Agent": "ai-code-review-agent",
-        ...(options.body ? { "Content-Type": "application/json" } : {})
+    const response = await fetchWithRetry(
+      `https://api.github.com${path}`,
+      {
+        method,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/vnd.github+json",
+          "X-GitHub-Api-Version": "2022-11-28",
+          "User-Agent": "ai-code-review-agent",
+          ...(options.body ? { "Content-Type": "application/json" } : {})
+        },
+        body: options.body ? JSON.stringify(options.body) : undefined
       },
-      body: options.body ? JSON.stringify(options.body) : undefined
-    });
+      // POST creates comments/reviews: retrying after a timeout could post them twice.
+      { timeoutMs: env.GITHUB_TIMEOUT_MS, retries: 2, retryUnsafe: method !== "POST" }
+    );
 
     if (!response.ok) {
       const errorBody = await response.text();
-      throw new HttpError(response.status, `GitHub API request failed for ${path}: ${errorBody}`, false);
+      throw new HttpError(response.status, `GitHub API request failed for ${path}: ${truncateText(errorBody, 500)}`, false);
     }
 
     if (response.status === 204) {
@@ -62,6 +71,10 @@ export class GitHubApiService {
     }
 
     return results;
+  }
+
+  getBotLogin(): Promise<string> {
+    return this.authService.getBotLogin();
   }
 
   async getPullRequest(owner: string, repository: string, pullNumber: number, installationId: number): Promise<GitHubPullRequest> {
@@ -122,6 +135,27 @@ export class GitHubApiService {
       installationId,
       `/repos/${owner}/${repository}/pulls/${pullNumber}/comments`
     );
+  }
+
+  /** Posts all inline comments as one review: one API call and one notification. */
+  async createPullRequestReview(
+    owner: string,
+    repository: string,
+    pullNumber: number,
+    installationId: number,
+    commitSha: string,
+    body: string,
+    comments: GitHubPullRequestReviewCommentInput[]
+  ): Promise<GitHubPullRequestReview> {
+    return this.request<GitHubPullRequestReview>(installationId, `/repos/${owner}/${repository}/pulls/${pullNumber}/reviews`, {
+      method: "POST",
+      body: {
+        commit_id: commitSha,
+        event: "COMMENT",
+        body,
+        comments
+      }
+    });
   }
 
   async createPullRequestReviewComment(

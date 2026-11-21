@@ -16,9 +16,10 @@ healthRouter.get("/ready", async (_request, response) => {
       status: "ready"
     });
   } catch (error) {
+    // Log details server-side only: database errors can reveal hosts and connection settings.
+    console.error("Readiness check failed", error);
     response.status(503).json({
-      status: "not ready",
-      error: error instanceof Error ? error.message : "Unknown readiness failure"
+      status: "not ready"
     });
   }
 });

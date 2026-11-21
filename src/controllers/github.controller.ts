@@ -3,20 +3,15 @@ import { env } from "../config/env";
 import { verifyGitHubWebhookSignature } from "../utils/crypto.util";
 import { HttpError } from "../utils/http-error.util";
 import { GitHubPullRequestWebhookSchema, GithubWebhookHeadersSchema } from "../validators/github.validator";
-import { ReviewService } from "../services/review/review.service";
+import { enqueueReview } from "../config/queue";
 
-const reviewService = new ReviewService();
+function isAllowedOwner(owner: string): boolean {
+  if (env.ALLOWED_GITHUB_OWNERS.length === 0) {
+    return true;
+  }
 
-function processReviewInBackground(
-  payload: Parameters<ReviewService["handleWebhookEvent"]>[0],
-  deliveryId: string,
-  eventType: string
-): void {
-  setImmediate(() => {
-    void reviewService.handleWebhookEvent(payload, deliveryId, eventType).catch((error: unknown) => {
-      console.error(`Background PR review failed for GitHub delivery ${deliveryId}`, error);
-    });
-  });
+  const normalizedOwner = owner.toLowerCase();
+  return env.ALLOWED_GITHUB_OWNERS.some((allowed) => allowed.toLowerCase() === normalizedOwner);
 }
 
 export async function handleGithubWebhook(request: Request, response: Response, next: NextFunction): Promise<void> {
@@ -42,13 +37,20 @@ export async function handleGithubWebhook(request: Request, response: Response, 
 
     const payload = GitHubPullRequestWebhookSchema.parse(request.body);
 
+    if (!isAllowedOwner(payload.repository.owner.login)) {
+      response.status(200).json({ received: true, ignored: true });
+      return;
+    }
+
+    // Persist the job before acknowledging, so an accepted webhook is never lost.
+    // If enqueueing fails, GitHub receives an error and records the delivery as failed.
+    await enqueueReview({ payload, deliveryId: headers.delivery, eventType: headers.event });
+
     response.status(202).json({
       received: true,
       accepted: true,
       deliveryId: headers.delivery
     });
-
-    processReviewInBackground(payload, headers.delivery, headers.event);
   } catch (error) {
     next(error);
   }

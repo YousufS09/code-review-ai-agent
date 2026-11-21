@@ -11,7 +11,6 @@ export function createApp() {
   app.set("trust proxy", 1);
   applySecurityMiddleware(app);
   app.use(jsonWithRawBody);
-  app.use(express.urlencoded({ extended: false }));
 
   app.use(healthRouter);
   app.use(githubRouter);

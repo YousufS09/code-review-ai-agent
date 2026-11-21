@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "../../config/database";
+import { env } from "../../config/env";
 import type { GitHubPullRequestWebhookPayload } from "../../types/github.types";
 import { isSupportedPullRequestAction } from "../../validators/github.validator";
 import { ReviewOrchestratorService } from "./review-orchestrator.service";
@@ -30,15 +31,19 @@ export class ReviewService {
       }
     });
 
-    if (existingWebhookEvent?.reviewJob && existingWebhookEvent.reviewJob.status !== "failed") {
+    const existingStatus = existingWebhookEvent?.reviewJob?.status;
+    if (existingWebhookEvent?.reviewJob && (existingStatus === "completed" || existingStatus === "superseded")) {
       return {
         ignored: existingWebhookEvent.ignored,
-        processed: existingWebhookEvent.reviewJob.status === "completed",
+        processed: true,
         reviewJobId: existingWebhookEvent.reviewJob.id
       };
     }
 
-    if (existingWebhookEvent?.reviewJob?.status === "failed") {
+    // A "failed" job is a retry after an error; a "processing" job means a previous attempt was
+    // interrupted (crash, restart, expiry). The queue runs at most one attempt per delivery at a time,
+    // so both cases are safe to resume here.
+    if (existingWebhookEvent?.reviewJob) {
       const failedJob = existingWebhookEvent.reviewJob;
       const repository = failedJob.pullRequest.repository;
       const installationId = payload.installation.id;
@@ -89,6 +94,8 @@ export class ReviewService {
     const commitSha = payload.pull_request.head.sha;
     const sender = payload.sender.login;
     const action = payload.action;
+    const isSkippedDraft = payload.pull_request.draft === true && !env.REVIEW_DRAFTS;
+    const shouldReview = isSupportedPullRequestAction(action) && !isSkippedDraft;
 
     const webhookEvent = await prisma.webhookEvent.upsert({
       where: { deliveryId },
@@ -100,7 +107,7 @@ export class ReviewService {
         prNumber,
         installationId: BigInt(installationId),
         payload: ReviewService.toJsonValue(payload),
-        ignored: !isSupportedPullRequestAction(action)
+        ignored: !shouldReview
       },
       create: {
         deliveryId,
@@ -112,11 +119,11 @@ export class ReviewService {
         installationId: BigInt(installationId),
         payload: ReviewService.toJsonValue(payload),
         processed: false,
-        ignored: !isSupportedPullRequestAction(action)
+        ignored: !shouldReview
       }
     });
 
-    if (!isSupportedPullRequestAction(action)) {
+    if (!shouldReview) {
       await prisma.webhookEvent.update({
         where: { id: webhookEvent.id },
         data: {

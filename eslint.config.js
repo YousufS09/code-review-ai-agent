@@ -6,16 +6,25 @@ const prettier = require("eslint-config-prettier");
 
 module.exports = [
   {
-    ignores: ["dist/**", "node_modules/**", "prisma/migrations/**"]
+    ignores: ["dist/**", "node_modules/**", "coverage/**", "prisma/migrations/**"]
   },
   js.configs.recommended,
   prettier,
+  {
+    files: ["**/*.js"],
+    languageOptions: {
+      sourceType: "commonjs",
+      globals: {
+        ...globals.node
+      }
+    }
+  },
   {
     files: ["**/*.ts"],
     languageOptions: {
       parser: tsParser,
       parserOptions: {
-        project: "./tsconfig.json",
+        project: "./tsconfig.eslint.json",
         tsconfigRootDir: __dirname,
         sourceType: "commonjs"
       },
@@ -28,6 +37,10 @@ module.exports = [
       "@typescript-eslint": tsPlugin
     },
     rules: {
+      // The TypeScript compiler already checks these, and the base rules misfire on TS types
+      // (e.g. Express's `Request` type clashing with the global fetch `Request`).
+      "no-undef": "off",
+      "no-redeclare": "off",
       "no-unused-vars": "off",
       "@typescript-eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
       "@typescript-eslint/no-explicit-any": "off"

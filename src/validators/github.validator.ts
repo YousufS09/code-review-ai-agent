@@ -21,7 +21,8 @@ export const GitHubWebhookPullRequestSchema = z.object({
   number: z.number().int().positive(),
   head: z.object({
     sha: z.string().min(1)
-  })
+  }),
+  draft: z.boolean().optional()
 });
 
 export const GitHubWebhookSenderSchema = z.object({
@@ -38,9 +39,14 @@ export const GitHubPullRequestWebhookSchema = z
   })
   .passthrough();
 
-export type SupportedPullRequestAction = "opened" | "synchronize" | "reopened";
+export type SupportedPullRequestAction = "opened" | "synchronize" | "reopened" | "ready_for_review";
 
-export const supportedPullRequestActions = new Set<SupportedPullRequestAction>(["opened", "synchronize", "reopened"]);
+export const supportedPullRequestActions = new Set<SupportedPullRequestAction>([
+  "opened",
+  "synchronize",
+  "reopened",
+  "ready_for_review"
+]);
 
 export function isSupportedPullRequestAction(action: string): action is SupportedPullRequestAction {
   return supportedPullRequestActions.has(action as SupportedPullRequestAction);

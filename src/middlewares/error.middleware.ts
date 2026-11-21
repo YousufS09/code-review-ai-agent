@@ -1,4 +1,4 @@
-import type { ErrorRequestHandler, NextFunction, Request, Response } from "express";
+import type { ErrorRequestHandler, Request, Response } from "express";
 import { ZodError } from "zod";
 import { HttpError } from "../utils/http-error.util";
 
@@ -20,7 +20,7 @@ export const errorMiddleware: ErrorRequestHandler = (error, _request, response, 
     return;
   }
 
-  if (error instanceof HttpError) {
+  if (error instanceof HttpError && error.expose) {
     response.status(error.statusCode).json({
       error: error.message
     });
@@ -32,10 +32,4 @@ export const errorMiddleware: ErrorRequestHandler = (error, _request, response, 
     error: "Internal Server Error"
   });
 };
-
-export function wrapAsync(handler: (request: Request, response: Response, next: NextFunction) => Promise<void>) {
-  return (request: Request, response: Response, next: NextFunction) => {
-    void handler(request, response, next).catch(next);
-  };
-}
 

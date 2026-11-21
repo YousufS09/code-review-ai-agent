@@ -1,16 +1,10 @@
 import crypto from "node:crypto";
 
-const mockHandleWebhookEvent = jest.fn().mockResolvedValue({
-  ignored: false,
-  processed: true,
-  reviewJobId: 1
-});
+const mockEnqueueReview = jest.fn().mockResolvedValue(undefined);
 
-jest.mock("../../src/services/review/review.service", () => {
+jest.mock("../../src/config/queue", () => {
   return {
-    ReviewService: jest.fn().mockImplementation(() => ({
-      handleWebhookEvent: mockHandleWebhookEvent
-    }))
+    enqueueReview: mockEnqueueReview
   };
 });
 
@@ -19,7 +13,8 @@ import { app } from "../../src/app";
 
 describe("app", () => {
   beforeEach(() => {
-    mockHandleWebhookEvent.mockClear();
+    mockEnqueueReview.mockReset();
+    mockEnqueueReview.mockResolvedValue(undefined);
   });
 
   it("serves the health endpoint", async () => {
@@ -55,7 +50,7 @@ describe("app", () => {
     expect(response.body.error).toBe("Invalid GitHub webhook signature");
   });
 
-  it("accepts a valid pull request webhook before processing the review", async () => {
+  it("enqueues a valid pull request webhook before acknowledging it", async () => {
     const payload = {
       action: "reopened",
       installation: { id: 1 },
@@ -86,11 +81,46 @@ describe("app", () => {
       accepted: true,
       deliveryId: "delivery-2"
     });
-
-    await new Promise<void>((resolve) => {
-      setImmediate(resolve);
+    expect(mockEnqueueReview).toHaveBeenCalledWith({
+      payload,
+      deliveryId: "delivery-2",
+      eventType: "pull_request"
     });
+  });
 
-    expect(mockHandleWebhookEvent).toHaveBeenCalledWith(payload, "delivery-2", "pull_request");
+  it("does not expose readiness failure details", async () => {
+    const { prisma } = await import("../../src/config/database");
+    const querySpy = jest.spyOn(prisma, "$queryRaw").mockRejectedValueOnce(new Error("connect ECONNREFUSED db.internal:5432"));
+    const errorSpy = jest.spyOn(console, "error").mockImplementation(() => undefined);
+
+    const response = await request(app).get("/ready");
+
+    expect(response.status).toBe(503);
+    expect(response.body).toEqual({ status: "not ready" });
+    querySpy.mockRestore();
+    errorSpy.mockRestore();
+  });
+
+  it("returns an error instead of acknowledging when the job cannot be enqueued", async () => {
+    mockEnqueueReview.mockRejectedValueOnce(new Error("database unavailable"));
+
+    const body = JSON.stringify({
+      action: "opened",
+      installation: { id: 1 },
+      repository: { name: "demo", owner: { login: "octocat" } },
+      pull_request: { number: 1, head: { sha: "abc123" } },
+      sender: { login: "octocat" }
+    });
+    const signature = `sha256=${crypto.createHmac("sha256", "test-webhook-secret").update(body).digest("hex")}`;
+
+    const response = await request(app)
+      .post("/webhooks/github")
+      .set("content-type", "application/json")
+      .set("x-github-event", "pull_request")
+      .set("x-github-delivery", "delivery-3")
+      .set("x-hub-signature-256", signature)
+      .send(body);
+
+    expect(response.status).toBe(500);
   });
 });

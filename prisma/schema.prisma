@@ -17,6 +17,14 @@ enum ReviewJobStatus {
   processing
   completed
   failed
+  superseded
+}
+
+enum ReviewSeverity {
+  critical
+  high
+  medium
+  low
 }
 
 model Repository {
@@ -71,7 +79,7 @@ model ReviewJob {
 model ReviewFinding {
   id           Int        @id @default(autoincrement())
   reviewJobId  Int
-  severity     String
+  severity     ReviewSeverity
   file         String
   line         Int?
   issue        String

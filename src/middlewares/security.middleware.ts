@@ -21,7 +21,12 @@ export function applySecurityMiddleware(app: Express): void {
       limit: isProduction ? 300 : 1000,
       standardHeaders: true,
       legacyHeaders: false,
-      skip: (request) => request.path === "/health" || request.path === "/ready"
+      // GitHub sends every webhook from a few shared IPs, so per-IP limits would drop real deliveries
+      // (GitHub does not retry them). Webhooks are authenticated by their HMAC signature instead.
+      skip: (request) =>
+        request.path === "/health" ||
+        request.path === "/ready" ||
+        (request.method === "POST" && request.path === "/webhooks/github")
     })
   );
 }

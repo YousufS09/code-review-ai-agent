@@ -6,4 +6,4 @@ process.env.GITHUB_PRIVATE_KEY =
   process.env.GITHUB_PRIVATE_KEY || "-----BEGIN RSA PRIVATE KEY-----\nMIIBOgIBAAJBALe3\n-----END RSA PRIVATE KEY-----";
 process.env.GITHUB_WEBHOOK_SECRET = process.env.GITHUB_WEBHOOK_SECRET || "test-webhook-secret";
 process.env.GROQ_API_KEY = process.env.GROQ_API_KEY || "test-groq-api-key";
-process.env.GROQ_MODEL = process.env.GROQ_MODEL || "llama-3.1-70b-versatile";
+process.env.GROQ_MODEL = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";

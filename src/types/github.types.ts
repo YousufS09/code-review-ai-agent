@@ -4,6 +4,7 @@ export interface GitHubInstallation {
 
 export interface GitHubUser {
   login: string;
+  type?: string;
 }
 
 export interface GitHubRepositoryOwner {
@@ -26,6 +27,8 @@ export interface GitHubPullRequest {
   html_url?: string;
   title?: string;
   body?: string | null;
+  state?: "open" | "closed";
+  draft?: boolean;
 }
 
 export interface GitHubPullRequestWebhookPayload {
@@ -72,13 +75,4 @@ export interface GitHubPullRequestReviewCommentInput {
 
 export interface GitHubPullRequestReview {
   id: number;
-}
-
-export interface GitHubReviewContext {
-  owner: string;
-  repository: string;
-  pullNumber: number;
-  installationId: number;
-  commitSha: string;
-  sender: string;
 }

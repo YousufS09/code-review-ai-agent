@@ -29,10 +29,8 @@ export interface ReviewJobPayload {
   sender: string;
 }
 
-export interface ReviewCommentContext {
-  owner: string;
-  repository: string;
-  pullNumber: number;
-  commitSha: string;
+export interface SkippedFile {
+  filename: string;
+  reason: string;
 }
 

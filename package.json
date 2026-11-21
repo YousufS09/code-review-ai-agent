@@ -6,10 +6,10 @@
   "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "tsc -p tsconfig.json",
-    "prestart": "npm run prisma:generate && npm run build",
+    "build": "prisma generate && tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "lint": "eslint .",
+    "typecheck": "tsc --noEmit -p tsconfig.eslint.json",
     "test": "jest --runInBand",
     "test:watch": "jest --watch",
     "prisma:generate": "prisma generate",
@@ -17,7 +17,6 @@
     "prisma:deploy": "prisma migrate deploy"
   },
   "dependencies": {
-    "@octokit/auth-app": "^8.1.0",
     "@prisma/client": "^6.13.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.1",
@@ -25,6 +24,7 @@
     "express-rate-limit": "^8.2.1",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
+    "pg-boss": "10.4.2",
     "zod": "^4.1.5"
   },
   "devDependencies": {

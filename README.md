@@ -1,14 +1,17 @@
 # AI Code Review Agent
 
-Backend-only AI agent that reviews GitHub Pull Requests using a GitHub App, PostgreSQL, Prisma, and Groq.
+Backend-only AI agent that reviews GitHub Pull Requests using a GitHub App, PostgreSQL, Prisma and Groq.
 
-When a pull request is opened, synchronized, or reopened, the service:
+When a pull request is opened, synchronized, reopened, or marked ready for review, the service:
 
 1. Verifies the GitHub webhook signature.
-2. Stores the webhook event.
-3. Fetches the Pull Request diff and changed files.
-4. Sends the diff to Groq for analysis.
-5. Posts or updates a review comment on the Pull Request.
+2. Saves a review job to a durable Postgres-backed queue (pg-boss) and acknowledges the webhook.
+3. A worker stores the webhook event, then fetches the Pull Request and its changed files.
+4. Skips the job if the commit is no longer the PR head, or the PR is closed or a draft.
+5. Filters out generated/vendored files, fits the rest into a size budget, and sends the diff to Groq.
+6. Posts or updates one summary comment and posts inline findings as a single PR review.
+
+Failed jobs are retried with backoff; if a review cannot be completed, the summary comment says so.
 
 The architecture is intentionally repository-scoped today, but the data model and service boundaries are designed so we can expand to multiple repositories or a full GitHub Organization later without reworking the core pipeline.
 
@@ -24,7 +27,10 @@ POST /webhooks/github
 Webhook signature verification
     |
     v
-WebhookEvent + ReviewJob records in PostgreSQL
+pg-boss job queue (PostgreSQL)  --> 202 Accepted
+    |
+    v
+Worker: WebhookEvent + ReviewJob records in PostgreSQL
     |
     v
 GitHub REST API (installation token)
@@ -33,7 +39,7 @@ GitHub REST API (installation token)
 Groq LLM
     |
     v
-GitHub PR comment update
+GitHub PR summary comment + batched inline review
 ```
 
 ## Tech Stack
@@ -43,6 +49,7 @@ GitHub PR comment update
 - TypeScript
 - PostgreSQL
 - Prisma ORM
+- pg-boss (durable job queue)
 - Groq LLM
 - GitHub App + GitHub Webhooks
 - Zod
@@ -107,6 +114,21 @@ GROQ_MODEL=
 CORS_ORIGIN=
 ```
 
+Optional settings (see `.env.example` for defaults):
+
+| Variable | Purpose |
+| --- | --- |
+| `ALLOWED_GITHUB_OWNERS` | Comma-separated users/orgs allowed to use the app. Empty allows every installation (a warning is logged in production). |
+| `GROQ_TEMPERATURE`, `GROQ_TIMEOUT_MS` | Model temperature and per-request timeout. |
+| `GITHUB_TIMEOUT_MS` | Per-request timeout for GitHub API calls. |
+| `REVIEW_MAX_PROMPT_CHARS`, `REVIEW_MAX_PATCH_CHARS` | Total and per-file diff size sent to the model. Files beyond the budget are listed as not reviewed. |
+| `REVIEW_IGNORE_PATTERNS` | Extra globs to skip (lockfiles, `dist/`, `vendor/`, minified files are always skipped). |
+| `REVIEW_MIN_SEVERITY` | Lowest severity reported (`critical`, `high`, `medium`, `low`). |
+| `REVIEW_DRAFTS` | `true` to review draft PRs. |
+| `WEBHOOK_RETENTION_DAYS` | Days to keep processed webhook events and their payloads. |
+
+The database user needs permission to create a schema: pg-boss creates its own `pgboss` schema on first start.
+
 ## PostgreSQL Setup
 
 Create a database for the app and apply the Prisma migration:
@@ -152,8 +174,9 @@ Handle these pull request actions:
 - `opened`
 - `synchronize`
 - `reopened`
+- `ready_for_review`
 
-All other events are ignored.
+All other events are ignored. Draft PRs are skipped unless `REVIEW_DRAFTS=true`.
 
 ## Ngrok Local Testing
 
@@ -192,6 +215,17 @@ Run a single test file:
 npx jest tests/unit/crypto.util.test.ts
 ```
 
+## Production Build
+
+```bash
+npm ci
+npm run build          # generates the Prisma client and compiles TypeScript
+npm run prisma:deploy  # applies database migrations
+npm start              # runs the API and the review worker
+```
+
+CI (`.github/workflows/ci.yml`) runs lint, typecheck, tests, migrations against a clean Postgres, and the build.
+
 ## AWS Deployment
 
 This project is designed to deploy cleanly on AWS using:
@@ -212,11 +246,14 @@ Deployment notes:
 
 - GitHub webhook signature verification
 - Raw request body capture for webhooks
+- Owner allowlist (`ALLOWED_GITHUB_OWNERS`)
 - Helmet
 - Secure CORS
-- Rate limiting
+- Rate limiting (signed webhooks are exempt, because GitHub delivers from shared IPs)
 - Zod validation
-- Centralized error handling
+- Centralized error handling; internal error details are never returned to callers
+- Model output is sanitized before posting: no HTML, hidden comments, @-mentions, or disguised links
+- PR content is passed to the model as untrusted data (prompt injection is reduced, not eliminated)
 
 ## AI Prompt Behavior
 
@@ -235,7 +272,9 @@ The bot posts one PR comment and updates it in place whenever possible using thi
 <!-- ai-code-review-agent -->
 ```
 
-This avoids duplicate comments while keeping the latest analysis visible in the pull request.
+This avoids duplicate comments while keeping the latest analysis visible in the pull request. Only a comment written by this app is updated, so a user pasting the marker cannot redirect it.
+
+Inline findings are posted as one PR review (one notification). Each inline comment carries a fingerprint, so the same finding is not posted again on later pushes even if its line moves.
 
 ## Database Models
 
@@ -252,9 +291,10 @@ The schema is relational and designed to support future organization-wide review
 ## Future Roadmap
 
 - GitHub Organization support
-- Inline review comments per diff hunk
 - Comment threading and dismissal handling
-- Better file chunking for large pull requests
+- Reviewing large pull requests in several model calls instead of a single size budget
+- Per-repository configuration file
+- Read API or dashboard for stored findings
 - Rule-based prefilters before LLM review
 - Multi-model routing
 - Metrics and dashboards

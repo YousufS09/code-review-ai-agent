@@ -35,7 +35,7 @@ const baseSchema = z.object({
   GITHUB_PRIVATE_KEY: z.string().min(1),
   GITHUB_WEBHOOK_SECRET: z.string().min(1),
   GROQ_API_KEY: z.string().min(1),
-  GROQ_MODEL: z.string().min(1).default("llama-3.3-70b-versatile"),
+  GROQ_MODEL: z.string().min(1).default("openai/gpt-oss-120b"),
   GROQ_TEMPERATURE: z.coerce.number().min(0).max(2).default(0.2),
   GROQ_TIMEOUT_MS: z.coerce.number().int().positive().default(90_000),
   GITHUB_TIMEOUT_MS: z.coerce.number().int().positive().default(20_000),
@@ -72,7 +72,7 @@ const testDefaults = {
   GITHUB_PRIVATE_KEY: "-----BEGIN RSA PRIVATE KEY-----\nMIIBOgIBAAJBALe3\n-----END RSA PRIVATE KEY-----",
   GITHUB_WEBHOOK_SECRET: "test-webhook-secret",
   GROQ_API_KEY: "test-groq-api-key",
-  GROQ_MODEL: "llama-3.3-70b-versatile"
+  GROQ_MODEL: "openai/gpt-oss-120b"
 };
 
 const rawEnv = process.env.NODE_ENV === "test" ? { ...testDefaults, ...process.env } : process.env;
